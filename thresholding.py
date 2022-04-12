@@ -1,4 +1,5 @@
 from math import floor, ceil
+from typing import Literal
 
 import numpy as np
 from PIL import Image
@@ -26,14 +27,19 @@ def balanced_thresholding(grayscale: Image.Image):
     return Image.fromarray(binary)
 
 
-def _otsu_convertation(p0, p1, i0, i1, w0, w1):
+def _otsu_convertation(p0, p1, i0, i1, w0, w1, metric: Literal['inter', 'intra', 'div'] = 'div'):
     m0 = np.sum(p0 * i0 / w0)
     m1 = np.sum(p1 * i1 / w1)
     d0 = np.sum(p0 * (i0 - m0) ** 2)
     d1 = np.sum(p1 * (i1 - m1) ** 2)
     d_intra = w0 * d0 + w1 * d1
     d_inter = w0 * w1 * (m0 - m1) ** 2
-    return d_inter / d_intra
+    if metric == 'inter':
+        return d_inter
+    elif metric == 'intra':
+        return d_intra
+    else:
+        return d_inter / d_intra
 
 
 def transform_otsu(grayscale: Image.Image) -> Image.Image:
@@ -45,7 +51,7 @@ def transform_otsu(grayscale: Image.Image) -> Image.Image:
     w0 = np.cumsum(hist)
     w1 = np.ones_like(w0) - w0
     results = []
-    for i in trange(len(w0)):
+    for i in trange(len(w0), desc='otsu'):
         if w0[i] < 0.01 or w1[i] < 0.01:
             continue
         result = _otsu_convertation(
