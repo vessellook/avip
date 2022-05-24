@@ -1,141 +1,149 @@
-from pathlib import Path
+from enum import Enum
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 
-from font_utils import Font, try_glyphs
-from thresholding import balanced_thresholding
+
+class LetterCase(Enum):
+    UPPER = 'capital'
+    LOWER = 'small'
+
+
+UPPERCASE = LetterCase.UPPER
+LOWERCASE = LetterCase.LOWER
 
 # Русские буквы написаны как есть, латинские и кириллические нерусские буквы написаны через их имена в Unicode
 slavic_alphabet = [
-    {'name': 'азъ', 'capital': 'А', 'small': 'а'},
-    {'name': 'буки', 'capital': 'Б', 'small': 'б'},
-    {'name': 'веди', 'capital': 'В', 'small': 'в'},
-    {'name': 'глаголь', 'capital': 'Г', 'small': 'г'},
-    {'name': 'добро', 'capital': 'Д', 'small': 'д'},
-    {'name': 'есть', 'capital': '\N{cyrillic capital letter ie}',
-     'small': '\N{cyrillic small letter ie}'},
-    {'name': 'живите', 'capital': 'Ж', 'small': 'ж'},
-    {'name': 'сало', 'capital': '\N{cyrillic capital letter dze}', 'small': '\N{cyrillic small letter dze}'},
-    {'name': 'земля', 'capital': 'З', 'small': 'з'},
-    {'name': 'иже', 'capital': 'И', 'small': 'и'},
-    {'name': 'и', 'capital': '\N{cyrillic capital letter byelorussian-ukrainian i}',
-     'small': '\N{cyrillic small letter byelorussian-ukrainian i}'},
-    {'name': 'како', 'capital': 'К', 'small': 'к'},
-    {'name': 'люди', 'capital': 'Л', 'small': 'л'},
-    {'name': 'мыслите', 'capital': 'М', 'small': 'м'},
-    {'name': 'нашъ', 'capital': 'Н', 'small': 'н'},
+    {'name': 'азъ', UPPERCASE: 'А', LOWERCASE: 'а'},
+    {'name': 'буки', UPPERCASE: 'Б', LOWERCASE: 'б'},
+    {'name': 'веди', UPPERCASE: 'В', LOWERCASE: 'в'},
+    {'name': 'глаголь', UPPERCASE: 'Г', LOWERCASE: 'г'},
+    {'name': 'добро', UPPERCASE: 'Д', LOWERCASE: 'д'},
+    {'name': 'есть', UPPERCASE: '\N{cyrillic capital letter ie}',
+     LOWERCASE: '\N{cyrillic small letter ie}'},
+    {'name': 'живите', UPPERCASE: 'Ж', LOWERCASE: 'ж'},
+    {'name': 'сало', UPPERCASE: '\N{cyrillic capital letter dze}',
+     LOWERCASE: '\N{cyrillic small letter dze}'},
+    {'name': 'земля', UPPERCASE: 'З', LOWERCASE: 'з'},
+    {'name': 'иже', UPPERCASE: 'И', LOWERCASE: 'и'},
+    {'name': 'и', UPPERCASE: '\N{cyrillic capital letter byelorussian-ukrainian i}',
+     LOWERCASE: '\N{cyrillic small letter byelorussian-ukrainian i}'},
+    {'name': 'како', UPPERCASE: 'К', LOWERCASE: 'к'},
+    {'name': 'люди', UPPERCASE: 'Л', LOWERCASE: 'л'},
+    {'name': 'мыслите', UPPERCASE: 'М', LOWERCASE: 'м'},
+    {'name': 'нашъ', UPPERCASE: 'Н', LOWERCASE: 'н'},
     {'name': 'онъ',
-     'capital': [
+     UPPERCASE: [
          '\N{cyrillic capital letter round omega}',
          '\N{latin capital letter O}'
      ],
-     'small': [
+     LOWERCASE: [
          '\N{cyrillic small letter round omega}',
          '\N{latin small letter O}'
      ]
      },
     {'name': 'омега',
-     'capital': [
+     UPPERCASE: [
          '\N{cyrillic capital letter omega}',
          '\N{latin capital letter W}'
      ],
-     'small': [
+     LOWERCASE: [
          '\N{cyrillic small letter omega}',
          '\N{latin small letter W}'
      ],
      },
-    {'name': 'покой', 'capital': 'П', 'small': 'п'},
-    {'name': 'рцы', 'capital': 'Р', 'small': 'р'},
-    {'name': 'слово', 'capital': 'С', 'small': 'с'},
-    {'name': 'твердо', 'capital': 'Т', 'small': 'т'},
+    {'name': 'покой', UPPERCASE: 'П', LOWERCASE: 'п'},
+    {'name': 'рцы', UPPERCASE: 'Р', LOWERCASE: 'р'},
+    {'name': 'слово', UPPERCASE: 'С', LOWERCASE: 'с'},
+    {'name': 'твердо', UPPERCASE: 'Т', LOWERCASE: 'т'},
     {'name': 'укъ',
-     'capital': [
+     UPPERCASE: [
          '\N{cyrillic capital letter uk}',
          '\N{latin capital letter U}'
      ],
-     'small': [
+     LOWERCASE: [
          '\N{cyrillic small letter uk}',
          '\N{latin small letter U}'
      ],
      },
-    {'name': 'ферть', 'capital': 'Ф', 'small': 'ф'},
-    {'name': 'херъ', 'capital': 'Х', 'small': 'х'},
+    {'name': 'ферть', UPPERCASE: 'Ф', LOWERCASE: 'ф'},
+    {'name': 'херъ', UPPERCASE: 'Х', LOWERCASE: 'х'},
     {'name': 'оть',
-     'capital': [
+     UPPERCASE: [
          '\N{cyrillic capital letter ot}',
          '\N{latin capital letter T}'
      ],
-     'small': [
+     LOWERCASE: [
          '\N{cyrillic small letter ot}',
          '\N{latin small letter T}'
      ]
      },
-    {'name': 'цы', 'capital': 'Ц', 'small': 'ц'},
-    {'name': 'червь', 'capital': 'Ч', 'small': 'ч'},
-    {'name': 'ша', 'capital': 'Ш', 'small': 'ш'},
-    {'name': 'ща', 'capital': 'Щ', 'small': 'щ'},
-    {'name': 'еръ', 'capital': 'Ъ', 'small': 'ъ'},
-    {'name': 'еры', 'capital': 'Ы', 'small': 'ы'},
-    {'name': 'ерь', 'capital': 'Ь', 'small': 'ь'},
+    {'name': 'цы', UPPERCASE: 'Ц', LOWERCASE: 'ц'},
+    {'name': 'червь', UPPERCASE: 'Ч', LOWERCASE: 'ч'},
+    {'name': 'ша', UPPERCASE: 'Ш', LOWERCASE: 'ш'},
+    {'name': 'ща', UPPERCASE: 'Щ', LOWERCASE: 'щ'},
+    {'name': 'еръ', UPPERCASE: 'Ъ', LOWERCASE: 'ъ'},
+    {'name': 'еры', UPPERCASE: 'Ы', LOWERCASE: 'ы'},
+    {'name': 'ерь', UPPERCASE: 'Ь', LOWERCASE: 'ь'},
     {'name': 'ять',
-     'capital': [
+     UPPERCASE: [
          '\N{cyrillic capital letter yat}',
          'Э'
      ],
-     'small': [
+     LOWERCASE: [
          '\N{cyrillic small letter yat}',
          'э'
      ]
      },
-    {'name': 'ю', 'capital': 'Ю', 'small': 'ю'},
+    {'name': 'ю', UPPERCASE: 'Ю', LOWERCASE: 'ю'},
     {'name': 'йотированный юсъ малый',
-     'capital': [
+     UPPERCASE: [
          '\N{cyrillic capital letter iotified little yus}',
          '\N{latin capital letter K}'
      ],
-     'small': [
+     LOWERCASE: [
          '\N{cyrillic small letter iotified little yus}',
          '\N{latin small letter K}'
      ]
      },
     {'name': 'юсъ малый',
-     'capital': [
+     UPPERCASE: [
          '\N{cyrillic capital letter little yus}',
          '\N{latin capital letter Z}'
      ],
-     'small': [
+     LOWERCASE: [
          '\N{cyrillic small letter little yus}',
          '\N{latin small letter Z}'
      ]
      },
     {'name': 'кси',
-     'capital': [
+     UPPERCASE: [
          '\N{cyrillic capital letter ksi}',
          '\N{latin capital letter X}'
      ],
-     'small': [
+     LOWERCASE: [
          '\N{cyrillic small letter ksi}',
          '\N{latin small letter X}'
      ]
      },
     {'name': 'пси',
-     'capital': [
+     UPPERCASE: [
          '\N{cyrillic capital letter psi}',
          '\N{latin capital letter P}'
      ],
-     'small': [
+     LOWERCASE: [
          '\N{cyrillic small letter psi}',
          '\N{latin small letter P}'
      ]
      },
-    {'name': 'фита', 'capital': '\N{cyrillic capital letter fita}', 'small': '\N{cyrillic small letter fita}'},
+    {'name': 'фита', UPPERCASE: '\N{cyrillic capital letter fita}',
+     LOWERCASE: '\N{cyrillic small letter fita}'},
     {'name': 'ижица',
-     'capital': [
+     UPPERCASE: [
          '\N{cyrillic capital letter izhitsa}',
          '\N{latin capital letter V}'
      ],
-     'small': [
+     LOWERCASE: [
          '\N{cyrillic small letter izhitsa}',
          '\N{latin small letter V}'
      ]
@@ -193,73 +201,3 @@ def crop_white(img: Image.Image) -> Image.Image:
     if left is None or top is None:
         raise Exception(f'{left}-{right}-{top}-{bottom}')
     return Image.fromarray(255 - np_img[top:bottom, left:right])
-
-
-def letter_to_image(letter: str, font: Font, width: int, height: int):
-    img = Image.new('L', (width, height), color=255)
-    d = ImageDraw.Draw(img)
-    w, h = d.textsize(letter, font=font.imageFont)
-    point = (width - w) // 2, (height - h) // 2
-    # print(w, h)
-    d.text(point, letter, font=font.imageFont, stroke_fill=0, align="center")
-    return img
-
-
-def draw_letters(font_name, font_size=200):
-    font = Font(Path(__file__).parent / 'fonts' / font_name, font_size)
-    font_name = font_name.split('.')[0]
-    for letter in slavic_alphabet:
-        capital = try_glyphs(font, letter['capital'])
-        directory = Path() / "slavic_letters" / letter['name']
-        directory.mkdir(exist_ok=True)
-        if capital is not None:
-            image = letter_to_image(capital, font=font, height=400, width=400)
-            image = balanced_thresholding(image)
-            image = crop_white(image)
-            image.save(f"slavic_letters/{letter['name']}/capital.{font_name}.bmp")
-        small = try_glyphs(font, letter['small'])
-        if small is not None:
-            image = letter_to_image(small, font=font, height=400, width=400)
-            image = balanced_thresholding(image)
-            image = crop_white(image)
-            image.save(f"slavic_letters/{letter['name']}/small.{font_name}.bmp")
-
-
-def remove_small_duplicates():
-    """If small letter is the same as capital letter, small letter should be removed"""
-    for directory in list(Path(__file__).parent.joinpath('slavic_letters').iterdir()):
-        if not directory.is_dir():
-            continue
-        filenames = list(directory.iterdir())
-        capital_filenames = sorted(filter(lambda f: f.name.startswith('capital'), filenames),
-                                   key=lambda f: f.name[::-1])
-        small_filenames = sorted(filter(lambda f: f.name.startswith('small'), filenames), key=lambda f: f.name[::-1])
-
-        i = 0
-        for capital_filename in capital_filenames:
-            if len(small_filenames) <= i:
-                break
-            small_filename = small_filenames[i]
-            if capital_filename.name.split('.')[-2] != small_filename.name.split('.')[-2]:
-                continue
-            small_image = np.asarray(Image.open(str(small_filename)))
-            capital_image = np.asarray(Image.open(str(capital_filename)))
-            if small_image.shape[0] == capital_image.shape[0] \
-                    and small_image.shape[1] == capital_image.shape[1] \
-                    and (small_image - capital_image).sum() == 0:
-                small_filename.unlink()
-            i += 1
-
-
-def remove_bad_images():
-    bad_image = np.asarray(Image.open('slavic_letters/bad-image.bmp'))
-    for directory in list(Path(__file__).parent.joinpath('slavic_letters').iterdir()):
-        if not directory.is_dir():
-            continue
-        for file in directory.iterdir():
-            image = np.asarray(Image.open(str(file)))
-            if bad_image.shape[0] == image.shape[0] \
-                    and bad_image.shape[1] == image.shape[1] \
-                    and (bad_image - image).sum() == 0:
-                print(file)
-                file.unlink()

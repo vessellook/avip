@@ -1,4 +1,5 @@
 import numpy as np
+from matplotlib import pyplot as plt
 
 
 def _reverse(binary: np.ndarray) -> np.ndarray:
@@ -70,9 +71,25 @@ def orientation_angle(binary: np.ndarray) -> float:
     return np.arctan(2 * matrix[0, 1] / (matrix[0, 0] - matrix[1, 1])) / 2
 
 
-def horizontal_projection(binary: np.ndarray) -> np.ndarray:
-    return _reverse(binary).sum(axis=0)
+def horizontal_projection(binary: np.ndarray, zero_weight=False) -> np.ndarray:
+    if not zero_weight:
+        binary = _reverse(binary)
+    return binary.sum(axis=0).astype(np.uint8)
 
 
-def vertical_projection(binary: np.ndarray) -> np.ndarray:
-    return _reverse(binary).sum(axis=1)
+def vertical_projection(binary: np.ndarray, zero_weight=False) -> np.ndarray:
+    if not zero_weight:
+        binary = _reverse(binary)
+    return binary.sum(axis=1).astype(np.uint8)[::-1]
+
+
+def draw_projection(x, y, path, show: bool = False):
+    fig = plt.figure()
+    axes = fig.add_subplot(1, 1, 1)
+    axes.plot(x, y)
+    axes.set_ylim(bottom=0)
+    axes.set_xlim(left=0)
+    if show:
+        fig.show()
+    fig.savefig(str(path), bbox_inches='tight')
+    plt.close(fig)
