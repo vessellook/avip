@@ -49,8 +49,7 @@ def draw_all_letters(alphabet, font: Font, bad_image: Image.Image) -> List[Lette
             image = font.try_draw_glyph(letter[word_case], 100, 100)
             if image is None or same(image, bad_image):
                 continue
-            image = balanced_thresholding(image)
-            image = crop_white(image)
+            image = crop_white(Image.fromarray(balanced_thresholding(image) * 255))
             images[word_case] = image
 
         if {UPPERCASE, LOWERCASE}.issubset(images.keys()) and same(images[UPPERCASE], images[LOWERCASE]):

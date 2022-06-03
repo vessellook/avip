@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm, trange
 
 
-def interpolation(img: Image.Image, n: int) -> Image.Image:
+def interpolation(img: Image.Image, n: int, with_tqdm=False) -> Image.Image:
     np_img = np.asarray(img)
     if len(np_img.shape) == 3:
         h, w, colors = np_img.shape
@@ -20,7 +20,10 @@ def interpolation(img: Image.Image, n: int) -> Image.Image:
         w1 = w * n
         np_img_result = np.empty((h1, w1), dtype=np.uint8)
 
-    for y1, y in tqdm(zip(range(h1), np.repeat(range(h), n)), desc='interpolation', total=h1):
+    iterator = zip(range(h1), np.repeat(range(h), n))
+    if with_tqdm:
+        iterator = tqdm(iterator, desc='interpolation', total=h1)
+    for y1, y in iterator:
         for x1, x in zip(range(w1), np.repeat(range(w), n)):
             np_img_result[y1, x1] = np_img[y, x]
     return Image.fromarray(np_img_result)

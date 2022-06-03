@@ -15,7 +15,7 @@ def _moment(binary: np.ndarray, x_exp: int = 0, y_exp: int = 0, x_offset: float 
     if y_exp > 0:
         y = np.tile(np.arange(0, h), (w, 1)).T
         arr *= (y - y_offset) ** y_exp
-    return arr.sum()
+    return arr.sum(dtype=np.float)
 
 
 def raw_moment(binary: np.ndarray, x_exp: int = 0, y_exp: int = 0):
@@ -32,8 +32,32 @@ def central_moment(binary: np.ndarray, x_exp: int = 0, y_exp: int = 0):
     return _moment(binary, x_exp=x_exp, y_exp=y_exp, x_offset=x, y_offset=y)
 
 
+def normalize_binary(binary: np.ndarray, zeros=False):
+    """Расширяет чёрно-белую картинку пустыми полями
+
+    :param binary: чёрно-белая картинка
+    :param bool zeros: заполнять ли поля нулями вместо единиц
+    :return:
+    """
+    x, y = center(binary)
+    h, w = binary.shape
+    y_shift = 2 * y - (h - 1)
+    x_shift = 2 * x - (w - 1)
+    new_shape = h + int(abs(y_shift)), w + int(abs(x_shift))
+    if zeros:
+        new_binary = np.zeros(new_shape)
+    else:
+        new_binary = np.ones(new_shape)
+    left, right = (0, w) if x_shift > 0 else (-w, None)
+    top, bottom = (0, h) if y_shift > 0 else (-h, None)
+    new_binary[top:bottom, left:right] = binary
+    return new_binary
+
+
 def scale_invariant(binary: np.ndarray, x_exp: int = 0, y_exp: int = 0):
-    return central_moment(binary, x_exp=x_exp, y_exp=y_exp) / (_moment(binary) ** (1 + (x_exp + y_exp) / 2))
+    normalized_binary = normalize_binary(binary)
+    zero_binary = np.zeros_like(normalized_binary)
+    return central_moment(normalized_binary, x_exp=x_exp, y_exp=y_exp) / central_moment(zero_binary, x_exp=x_exp, y_exp=y_exp)
 
 
 def weight(binary: np.ndarray) -> float:
@@ -93,3 +117,31 @@ def draw_projection(x, y, path, show: bool = False):
         fig.show()
     fig.savefig(str(path), bbox_inches='tight')
     plt.close(fig)
+
+
+from PIL import Image
+from resampling import interpolation
+
+if __name__ == '__main__':
+    black = Image.open('black.bmp').convert('L')
+    white = Image.open('white.bmp').convert('L')
+
+    np_black = np.asarray(black) / 255
+    np_black2 = normalize_binary(np_black)
+    print(np_black.shape, np_black2.shape)
+    assert (np_black - np_black2).sum() == 0
+
+    np_white = np.asarray(white) / 255
+    np_white2 = normalize_binary(np_white)
+    print(np_white.shape, np_white2.shape)
+    assert (np_white - np_white2).sum() == 0
+
+    print('black:', relative_axial_moments(np_black))
+    # сравнение относительных моментов для изображения чёрной рамки с различными интерполяциями
+    print('original:', relative_axial_moments(np_white))
+    print('x2:', relative_axial_moments(np.asarray(interpolation(white, 2)) / 255))
+    print('x3:', relative_axial_moments(np.asarray(interpolation(white, 3)) / 255))
+    print('x4:', relative_axial_moments(np.asarray(interpolation(white, 4)) / 255))
+    print('x5:', relative_axial_moments(np.asarray(interpolation(white, 5)) / 255))
+    print('x6:', relative_axial_moments(np.asarray(interpolation(white, 6)) / 255))
+    print('x7:', relative_axial_moments(np.asarray(interpolation(white, 7)) / 255))

@@ -1,6 +1,8 @@
 from fractions import Fraction
 from pathlib import Path
+from typing import Union
 
+import numpy as np
 from PIL import Image
 from mdutils import MdUtils
 
@@ -9,7 +11,9 @@ import grayscale
 import thresholding
 
 
-def save_and_add_to_report(report: MdUtils, text: str, image: Image, path: Path):
+def save_and_add_to_report(report: MdUtils, text: str, image: Union[Image.Image, np.ndarray], path: Path):
+    if not isinstance(image, Image.Image):
+        image = Image.fromarray(image)
     image.save(path)
     report.new_line(text)
     report.new_line(report.new_inline_image(text, path=path.name))
@@ -51,10 +55,10 @@ def lab1(M: int, N: int):
                                grayscaled,
                                output_dir / f'grayscale.{name}')
         save_and_add_to_report(report, f'Сбалансированное пороговое отсечение гистограммы',
-                               thresholding.balanced_thresholding(grayscaled),
+                               thresholding.balanced_thresholding(grayscaled) * 255,
                                output_dir / f'balance.{name}')
         save_and_add_to_report(report, f'Бинаризация Отцу',
-                               thresholding.transform_otsu(grayscaled),
+                               thresholding.transform_otsu(grayscaled) * 255,
                                output_dir / f'otsu.{name}')
     report.create_md_file()
 
