@@ -2,3 +2,7 @@ Pillow
 opencv-contrib-python
 numpy
 tqdm
+scikit-image
+matplotlib
+tensorflow
+keras-unet
